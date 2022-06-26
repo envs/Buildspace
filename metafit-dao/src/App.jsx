@@ -1,5 +1,5 @@
-import { useAddress, useMetamask, useEditionDrop } from "@thirdweb-dev/react";
-import { useState, useEffect } from 'react';
+import { useAddress, useMetamask, useEditionDrop, useToken } from "@thirdweb-dev/react";
+import { useState, useEffect, useMemo } from 'react';
 
 const App = () => {
 
@@ -9,8 +9,75 @@ const App = () => {
   console.log("Hey!! 👋 Address: ", address);
 
   const editionDrop = useEditionDrop("0x1eFd0239C501815684736C479B111174dd5fDCF6"); // Initialize editionDrop contract
+  const token = useToken("0x4995818d1DDDaE65E763985955a3AC950492f242");
+
   const [hasClaimedNFT, setHasClaimedNFT] = useState(false);  // state variable to know if user has the NFT
   const [isClaiming, setIsClaiming] = useState(false);
+
+  // Holds the amount of token each member has in state
+  const [memberTokenAmounts, setMemberTokenAmounts] = useState([]);
+  // The arrray holding all of our members addresses
+  const [memberAddresses, setMemberAddresses] = useState([]);
+
+  // An helper function to shorten user's wallet address
+  const shortenAddress = (str) => {
+    return str.substring(0, 6) + "..." + str.substring(str.length - 4);
+  };
+
+  // This useEffect grabs all the addresses of members holding an NFT
+  useEffect(() => {
+    if (!hasClaimedNFT) {
+      return
+    }
+
+    // Grab the users who hold the NFT with tokenId of 0.
+    const getAllAddresses = async () => {
+      try {
+        const memberAddresses = await editionDrop.history.getAllClaimerAddresses(0);
+        setMemberAddresses(memberAddresses);
+        console.log("🚀 Members addresses", memberAddresses);
+
+      } catch (error) {
+        console.error("Failed to get members' list", error);
+      }
+    };
+    getAllAddresses();
+
+  }, [hasClaimedNFT, editionDrop.history]);
+
+  // This useEffect grabs the # of toekn each member holds
+  useEffect(() => {
+    if (!hasClaimedNFT) {
+      return
+    }
+
+    const getAllBalances = async () => {
+      try {
+        const amounts = await token.history.getAllHolderBalances();
+        setMemberTokenAmounts(amounts);
+        console.log("👜 Amounts", amounts);
+
+      } catch (error) {
+        console.error("Failed to get members' balances");
+      }
+    };
+    getAllBalances();
+
+  }, [hasClaimedNFT, token.history]);
+
+  // Now, we combine memberAddresses and memberTokenAmounts into a single array
+  const memberList = useMemo(() => {
+    return memberAddresses.map((address) => {
+      // If we find address in memberTokenAmounts array, return token amount
+      // otherwise, return 0
+      const member = memberTokenAmounts?.find(({ holder }) => holder === address);
+      return {
+        address,
+        tokenAmount: member?.balance.displayValue || "0",
+      }
+    });
+  }, [memberAddresses, memberTokenAmounts]);
+
 
   useEffect(() => {
     // If user doesn't have connected wallet, exit
@@ -59,7 +126,7 @@ const App = () => {
   if (!address) {
     return (
       <div className="landing">
-        <h1>Welcome to MetaFit DAO</h1>
+        <h1>Welcome to MetaFit DAO 🚀🚀</h1>
         <button onClick={connectWithMetamask} className="btn-hero">
           Connect your wallet
         </button>
@@ -71,11 +138,34 @@ const App = () => {
   if (hasClaimedNFT) {
     return (
       <div className="member-page">
-        <h1>🍪MetaFit DAO Member Page</h1>
+        <h1>MetaFit DAO Member Page 🚀🚀</h1>
         <p>Congratulations on being a member</p>
+        <div>
+          <div>
+            <h2>Member List</h2>
+            <table className="card">
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th>Token Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {memberList.map((member) => {
+                  return (
+                    <tr key={member.address}>
+                      <td>{shortenAddress(member.address)}</td>
+                      <td>{member.tokenAmount}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     );
-  }
+  };
 
   // This is what to display if the user is already connected but not a member (hasn't minted Membership NFT)
   return (
