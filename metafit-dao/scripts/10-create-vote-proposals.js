@@ -9,6 +9,7 @@ const token = sdk.getToken("0x4995818d1DDDaE65E763985955a3AC950492f242");
 (async () => {
     try {
         // Create proposal to mint 500,000 new token to treasury
+        await token.delegateTo(process.env.WALLET_ADDRESS);
         const amount = 500_000;
         const description = "Should the DAO mint an additional " + amount + " tokens into the treasury?";
         const executions = [
@@ -42,20 +43,25 @@ const token = sdk.getToken("0x4995818d1DDDaE65E763985955a3AC950492f242");
             process.env.WALLET_ADDRESS + " for being awesome?";
         const executions = [
             {
-                // Token contract that actually executes the mint
-                toAddress: token.getAddress(),
-                // nativeToken is ETH. Hence, nativeTokenValue is the amount of ETH we want to send in this proposal.
                 nativeTokenValue: 0,
                 transactionData: token.encoder.encode(
-                    "mintTo", [
-                    vote.getAddress(),
-                    ethers.utils.parseUnits(amount.toString(), 18),
-                ]
+                    // We are doing transfer from the treasury to our wallet
+                    "transfer",
+                    [
+                        process.env.WALLET_ADDRESS,
+                        ethers.utils.parseUnits(amount.toString(), 18),
+                    ]
                 ),
+                toAddress: token.getAddress(),
             }
         ];
-    } catch (error) {
 
+        await vote.propose(description, executions);
+
+        console.log("✅ Successfully created proposal to reward ourselves from the treasury, let's hope people vote for it!");
+
+    } catch (error) {
+        console.error("Failed to create second proposal", error);
     }
 
 })();
